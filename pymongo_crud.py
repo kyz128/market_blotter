@@ -82,7 +82,12 @@ def calculate_all_net_position():
 
 def fetch_all():
     data = list(db.transactions.find())
-    df = pd.DataFrame(data)[['start_date', 'ticker','shares','start_price','end_date', 'end_price', 'final_pnl']]
+    df = pd.DataFrame(data)
+    cols = list(df.columns.values)
+    if 'end_date' in cols:
+    	df = df[['start_date', 'ticker','shares','start_price','end_date', 'end_price', 'final_pnl']]
+    else:
+    	df = df[['start_date', 'ticker','shares','start_price']]
     wb.sheets['All_Transactions'].range('A1').options(index=False).value = df
 
 def get_open_tickers():
