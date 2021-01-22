@@ -7,7 +7,7 @@ import json
 import matplotlib.pyplot as plt
 #import argparse
 
-client = pymongo.MongoClient("mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
+client = pymongo.MongoClient("mongodb+srv://<username>:<password>@<cluster>.mongodb.net/paper_trades?retryWrites=true&w=majority")
 db = client.paper_trades
 wb = xw.Book('excel_interface.xlsm')
 
