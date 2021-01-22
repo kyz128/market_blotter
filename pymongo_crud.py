@@ -4,12 +4,40 @@ import numpy as np
 import xlwings as xw
 import datetime 
 import json
+import matplotlib.pyplot as plt
 #import argparse
 
 client = pymongo.MongoClient("mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
 db = client.paper_trades
 wb = xw.Book('excel_interface.xlsm')
 
+def snapshot_graph():
+	data = list(db.snapshots.find())
+	df= pd.DataFrame(data)
+	fig = plt.figure()
+	plt.plot(df["date"], df["unrealized"], label = "Unrealized")
+	plt.plot(df["date"], df["realized"], label = "Realized")
+	plt.plot(df["date"], df["total"], label = "Total")
+	plt.xlabel('Date')
+	plt.ylabel('PnL ($)')
+	plt.title("PnL Over Time")
+	plt.legend()
+	plt.xticks(rotation=90)
+	wb.sheets['Chart'].pictures.add(fig, name = "pnl", update=True)
+
+def insert_snapshot():
+	date = datetime.datetime.utcnow()
+	df = wb.app.selection.options(pd.DataFrame, index = 0).value
+	if len(df) == 0:
+		current_pos = 0
+	else:
+		current_pos = df["net_position"].sum()
+	pipeline = [{"$match": {"final_pnl": {"$exists": True}}},
+	{ "$group": { "_id" : None, "total" : { "$sum": "$final_pnl" }}}]
+	realized = list(db.transactions.aggregate(pipeline))[0]['total']
+	data = {'date': date, 'realized': realized, 'unrealized': current_pos, 'total': realized + current_pos}
+	db.snapshots.insert_one(data)
+    
 def insert_transactions():
     #must include header 
     df = wb.app.selection.options(pd.DataFrame, index = 0).value
@@ -23,16 +51,17 @@ def insert_transactions():
     fetch_all()
 
 def update_transaction(start_date, ticker, new_values, unset = False):
-    try:
-        start = datetime.datetime.strptime(start_date, '%m/%d/%Y')
-    except:
-        start = start_date
-    end = start + datetime.timedelta(days=1)
-    query = {"ticker": ticker, "start_date": {'$lte': end, '$gte': start}}
-    if unset == False:
-        db.transactions.update_one(query, [{"$set": new_values}])
-    else:
-        db.transactions.update_one(query, {"$unset": new_values})
+	try:
+		start = datetime.datetime.strptime(start_date, '%m/%d/%Y')
+	except:
+		start = start_date
+	start = datetime.datetime(start.year, start.month, start.day)
+	end = start + datetime.timedelta(days=1)
+	query = {"ticker": ticker, "start_date": {'$lte': end, '$gte': start}}
+	if unset == False:
+		db.transactions.update_one(query, [{"$set": new_values}])
+	else:
+		db.transactions.update_one(query, {"$unset": new_values})
 
 def close_transaction():
     #start_date of form 1-2 digit month/2 digit day/4 digit year
