@@ -6,7 +6,7 @@ import pymongo
 from werkzeug.routing import BaseConverter, ValidationError
 
 app = Flask(__name__)
-app.config["MONGO_URI"] = "mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority"
+app.config["MONGO_URI"] = "mongodb+srv://<username>:<password>@cluster0.po32h.mongodb.net/<collection_name>?retryWrites=true&w=majority"
 api = Api(app, title = "Trader Diary API")
 ns = api.namespace('entries', description='Trader diary CRUD operations')
 mongo = PyMongo(app)
