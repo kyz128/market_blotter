@@ -11,9 +11,18 @@ import time
 import re
 #import argparse
 
-client = pymongo.MongoClient("mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/paper_trades?retryWrites=true&w=majority")
+#client = pymongo.MongoClient("mongodb+srv://<user>:<pass>@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
+client = pymongo.MongoClient("mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
 db = client.paper_trades
 wb = xw.Book('excel_interface.xlsm')
+
+
+def init():
+    wb.sheets['Summary'].range('A4').expand().clear_contents()
+    wb.sheets['Flash'].range('A2').expand().clear_contents()
+    wb.sheets['Chart'].range('P4').clear_contents()
+    wb.sheets['Chart'].range('P6').clear_contents()
+    wb.sheets['Chart'].range('M16').expand().clear()
 
 ##############################################################################################################################################################
 
@@ -41,6 +50,7 @@ def snapshot_graph():
     table_res = edata.loc[(edata['date']>= cday) & (edata['date']< nday)].drop(['date'], axis=1)
     wb.sheets['Chart'].range('M16:S28').clear_contents()
     wb.sheets['Chart'].range('M16').options(index = False, header = False).value = table_res
+    wb.sheets['Chart'].range('M16').expand().api.Borders.Weight = 4
     #if there is existing ticker selected, then don't recreate the dropdown 
     #if date has changed, clear out dropdown value so it will load the appropriate tickers for that date
     if wb.sheets['Chart'].range('P6').value == None:
@@ -193,6 +203,7 @@ def correct_transaction():
     wb.app.selection.clear_contents()
     wb.sheets['Insert_Update'].range('H1').value = ["ticker", "start_date", "c/p", "strike", "expiry"]
     fetch_open()
+    fetch_past()
 
 def delete_transactions(timeframe=1):
     transaction = wb.app.selection.options(np.array, ndim=2).value
@@ -322,10 +333,10 @@ def retrieve_risk():
     #print(df['expiry'])
     df["implied_vol"]= df.apply(calc_imp_vol, axis=1)
     df["vol_pct_chg"]= df.apply(calc_vol_chg, axis=1)
-    wb.sheets['Summary'].range('A4').options(index = False, header = False).value = df
+    wb.sheets['Summary'].range('A4').options(index = False, header= False).value = df
     last_row = wb.sheets['Summary'].range('A' + str(wb.sheets['Summary'].cells.last_cell.row)).end('up').row
     val_df= wb.sheets['Summary'].range('A3:J%s' % last_row).options(pd.DataFrame).value.reset_index()
-    time.sleep(30)
+    time.sleep(10)
     val_df[["delta", "gamma", "vega", "theta"]] = val_df.apply(greeks, axis=1, result_type="expand")
     #val_df[["current_price", "price_change", "implied_vol", "vol_pct_chg"]] = df[["current_price", "price_change", "implied_vol", "vol_pct_chg"]]
     wb.sheets['Summary'].range('A4:N%s' % last_row).clear_contents()
