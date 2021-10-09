@@ -11,8 +11,7 @@ import time
 import re
 #import argparse
 
-#client = pymongo.MongoClient("mongodb+srv://<username>:<password>@<cluster>.mongodb.net/paper_trades?retryWrites=true&w=majority")
-client = pymongo.MongoClient("mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
+client = pymongo.MongoClient("mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/paper_trades?retryWrites=true&w=majority")
 db = client.paper_trades
 wb = xw.Book('excel_interface.xlsm')
 
@@ -225,9 +224,9 @@ def delete_transactions(timeframe=1):
 def calc_imp_vol(row):
     prev_day = (datetime.datetime.today() - BDay(1)).strftime("%Y%m%d")
     if row["c/p"] == 'c' or row["c/p"] == 'p':
-        if row["type"] == "equity":
+        if row["type"] != "curncy":
             #override_field: opt_valuation_dt, format YYYYMMDD
-            return """=BDP("{} {} {}{} equity",  "ivol_tm", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row["c/p"], row['strike'], prev_day)
+            return """=BDP("{} {} {}{} {}",  "ivol_tm", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row["c/p"], row['strike'],row['type'], prev_day)
         else:
             #override field: reference_date
             return """=BDP("{} {}",  "sp_vol_surf_mid", "reference_date", "{}")""".format(row["ticker"], row["type"], prev_day)
@@ -237,8 +236,8 @@ def calc_imp_vol(row):
 def calc_vol_chg(row):
     prev_day = (datetime.datetime.today() - BDay(1)).strftime("%Y%m%d")
     if row['c/p'] == 'c' or row['c/p'] == 'p':
-        if row['type'] == 'equity':
-            return """=BDP("{} {} {}{} equity",  "opt_imp_vol_pct_chng", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], prev_day)
+        if row['type'] != 'curncy':
+            return """=BDP("{} {} {}{} {}",  "opt_imp_vol_pct_chng", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], row['type'], prev_day)
         else:
             return """=BDP("{}v3m {}",  "chg_pct_1d")""".format(row["ticker"], row["type"])
     else:
@@ -248,11 +247,11 @@ def greeks(row):
     #make sure date is changed
     prev_day = (datetime.datetime.today() - BDay(1)).strftime("%Y%m%d")
     if row['c/p'] == 'c' or row['c/p'] == 'p':
-        if row['type'] == 'equity':
-            delta = """=BDP("{} {} {}{} equity",  "delta", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], prev_day)
-            gamma = """=BDP("{} {} {}{} equity",  "gamma", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], prev_day)
-            vega = """=BDP("{} {} {}{} equity",  "vega", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], prev_day)
-            theta = """=BDP("{} {} {}{} equity",  "opt_theta", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], prev_day)
+        if row['type'] != 'curncy':
+            delta = """=BDP("{} {} {}{} {}",  "delta", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], row['type'], prev_day)
+            gamma = """=BDP("{} {} {}{} {}",  "gamma", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], row['type'], prev_day)
+            vega = """=BDP("{} {} {}{} {}",  "vega", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], row['type'], prev_day)
+            theta = """=BDP("{} {} {}{} {}",  "opt_theta", "opt_valuation_dt", "{}")""".format(row['ticker'], row['expiry'].strftime("%m/%d/%y"), row['c/p'], row['strike'], row['type'], prev_day)
             return [delta, gamma, vega, theta]
         else:
             #make_sure rf rate is yesterday's
@@ -302,13 +301,22 @@ def fetch_past():
     wb.sheets['Past_Transactions'].range('A1:J%s' % last_row).clear_contents()
     wb.sheets['Past_Transactions'].range('A1').options(index=False).value = df
 
+def identify_type(row):
+    if bool(re.findall('[^0-9]{6}', row['ticker'])):
+        return 'curncy'
+    elif bool(re.findall('^[^0-9]+$', row['ticker'])):
+        return 'equity'
+    elif bool(re.findall('^(ES|RTY|NQ).+$', row['ticker'])):
+        return 'index'
+    else:
+        return 'comdty'
 
 def retrieve_risk():
     data = list(db.transactions.find())
     df = pd.DataFrame(data)
     df = df.groupby(["ticker", "c/p", "strike", "expiry"], dropna= False).agg({'position': 'sum'})
     df.reset_index(inplace=True)
-    df['type'] = np.where(df['ticker'].str.len() == 6, 'curncy', 'equity')
+    df['type'] = df.apply(identify_type, axis=1)
     df["current_price"] = df[["ticker", "type"]].apply(lambda x: """=BDP("{} {}",  "px_last")""".format(x["ticker"], x["type"]), axis = 1) 
     df["price_change"] = df[["ticker", "type"]].apply(lambda x: """=BDP("{} {}",  "chg_net_1d")""".format(x["ticker"], x["type"]), axis = 1)
     #print(df['expiry'])
