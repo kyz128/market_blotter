@@ -11,8 +11,7 @@ import time
 import re
 #import argparse
 
-#client = pymongo.MongoClient("mongodb+srv://<user>:<pass>@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
-client = pymongo.MongoClient("mongodb+srv://kyz128:z12081120Ykim@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
+client = pymongo.MongoClient("mongodb+srv://<user>:<pass>@cluster0.po32h.mongodb.net/paper_trades?retryWrites=true&w=majority")
 db = client.paper_trades
 wb = xw.Book('excel_interface.xlsm')
 
